@@ -4,6 +4,7 @@
 #include "ofSerial.h"
 #include <utility>
 #include <map>
+#include "ofTrueTypeFont.h"
 
 class ofxSensfloor : public ofThread
 {
@@ -21,11 +22,13 @@ class ofxSensfloor : public ofThread
 		static const ofVec2f TILE_SIZE_SMALL;
 		static const ofVec2f TILE_SIZE_LARGE;
 		static const int BAUD_RATE_DEFAULT;
+
+		float threshold;
 	
 		ofxSensfloor();
 		~ofxSensfloor();
 
-		void setup(unsigned char roomID1, unsigned char roomID2, int numRows, int numCols, vector<int> customTileIDs = vector<int>(), ofVec2f tileSize = TILE_SIZE_SMALL);
+		void setup(unsigned char roomID1, unsigned char roomID2, int numCols, int numRows, vector<int> customTileIDs = vector<int>(), ofVec2f tileSize = TILE_SIZE_SMALL);
 		void start(string portName, int baudRate = BAUD_RATE_DEFAULT);
 		void start(int deviceNumber, int baudRate = BAUD_RATE_DEFAULT);
 		void stop();
@@ -36,40 +39,36 @@ class ofxSensfloor : public ofThread
 	
 	private:
 	
-		/*
-		+-+
-		|/
-		+
-		*/
 		struct Field
 		{
-			Field(int index0, int index1, int index2, unsigned char val = 0) : index0(index0), index1(index1), index2(index2), val(ofRandom(1.0f)) {};
+			Field(int index0, int index1, int index2, unsigned char val = 0) : index0(index0), index1(index1), index2(index2), val() {};
 			int index0, index1, index2;
 			float val;
 		};
 		
-		/*
-		1-2-3
-		|\|/|
-		8 0 4
-		|/|\|
-		7-6-5
-		*/
 		struct Tile
 		{
 			char tileID1, tileID2;
 			vector<Field> fields;
+			float latestUpdateTime;
 		};
+
+		typedef ofPtr<Tile> TilePtr;
 	
-		ofSerial _serial;
+		unsigned int _numCycles;
 		char _roomID1, _roomID2;
+		ofSerial _serial;
 		vector<ofVec3f> _vertices;
-		vector<Tile> _tiles;
+		vector<TilePtr> _tiles;
+		map<pair<unsigned char, unsigned char>, TilePtr> _tileByIDs;
 		ofVboMesh _mesh;
 		vector<unsigned char> _latestMessage;
-		map<pair<unsigned char, unsigned char>, Tile*> _tileByIDs;
+		ofTrueTypeFont _font;
 
 		void threadedFunction();
 		void _readSensorData();
 		void _parseMessage(vector<unsigned char> msg);
+		void _sendMessage(vector<unsigned char> msg);
+		void _sendPollMessage(unsigned char tileID1, unsigned char tileID2);
+		void _checkTimeout();
 };

@@ -20,7 +20,9 @@ const int ofxSensfloor::BAUD_RATE_DEFAULT = 115200;
 
 ofxSensfloor::ofxSensfloor ()
 {
-
+	threshold = 0.145f;
+	_numCycles = 0;
+	_font.loadFont("Courier New", 40);
 }
 
 ofxSensfloor::~ofxSensfloor()
@@ -51,9 +53,86 @@ void ofxSensfloor::threadedFunction()
 {
 	while (isThreadRunning())
 	{
+		int sleepTime = 5;
+
 		_readSensorData();
-		sleep(5);
+		
+		if (_numCycles * sleepTime % 10 == 0) // every second
+		{
+			_checkTimeout();
+		}
+
+		_numCycles++;
+		sleep(sleepTime);
 	}	
+}
+
+void ofxSensfloor::_checkTimeout()
+{
+	//cout << "CHECK TIME OUT!" << endl;
+	float time = ofGetElapsedTimef();
+
+	for (vector<TilePtr>::iterator t = _tiles.begin(); t != _tiles.end(); t++)
+	{
+		TilePtr tile = *t;
+
+		float timeSinceLastUpdate = time - tile->latestUpdateTime;
+		if (tile->latestUpdateTime > 0.0f && timeSinceLastUpdate > .1f) // 100ms
+		{
+			bool valuesOverThreshold = false;
+
+			for (vector<Field>::iterator f = tile->fields.begin(); f != tile->fields.end(); f++)
+			{
+				if (f->val > threshold)
+				{
+					valuesOverThreshold = true;
+					break;
+				}
+			}
+
+			if (valuesOverThreshold)
+			{
+				_sendPollMessage(tile->tileID1, tile->tileID2);
+			}
+		}
+		//cout << dec << "Tile " << (int)t->tileID1 << ", " << (int)t->tileID2 << " updated last :" <<  t->latestUpdateTime << endl;
+	}
+}
+
+void ofxSensfloor::_sendPollMessage(unsigned char tileID1, unsigned char tileID2)
+{
+	vector<unsigned char> m;
+
+	m.push_back(FRAME_START_IDENTIFIER);
+	m.push_back(_roomID1); // GID
+	m.push_back(_roomID2); // GID
+
+	m.push_back(tileID1); // MODID
+	m.push_back(tileID2); // MODID
+
+	m.push_back(0x00); // SENS irrelevant for this message
+	m.push_back(0x00); // FTID irrelevant for this message
+
+	unsigned char meaning = 0x00;
+	meaning |= 0x04; // status request
+
+	m.push_back(meaning); // DEF
+
+	m.push_back(0x00); // PARA paramater for wich to request status (0x00 is capacative value)
+
+	m.push_back(0x00); // fill
+	m.push_back(0x00); // fill
+	m.push_back(0x00); // fill
+	m.push_back(0x00); // fill
+	m.push_back(0x00); // fill
+	m.push_back(0x00); // fill
+	m.push_back(0x00); // fill
+	m.push_back(0x00); // fill
+
+	_serial.writeBytes(&m[0], 17);
+	_serial.flush(false, true);
+
+	cout << "Poll message sent to Tile " << (int)tileID1 << ", " << tileID2 << endl;
 }
 
 void ofxSensfloor::_readSensorData()
@@ -72,17 +151,27 @@ void ofxSensfloor::_readSensorData()
 			unsigned char b = buffer[i];
 			_latestMessage.push_back(b);
 
+			//validate message
 			if (_latestMessage.size() == 17 && _latestMessage[0] == FRAME_START_IDENTIFIER)
 			{
 				_parseMessage(_latestMessage);
-				_latestMessage.clear();
 			}
 
-			cout << hex << (int)b << " ";
+			// clear the last message on frame start identifyer (if the last message is complete)
+			if (b == FRAME_START_IDENTIFIER && _latestMessage.size() >= 17)
+			{
+				_latestMessage.clear();
+				_latestMessage.push_back(b);
+			}
+
+			//cout << hex << (int)b << " ";
 		}
 
-		cout << endl;
+		_serial.flush(true, false);
+		//cout << endl;
 	}
+
+	//cout << dec << "latest message size: " << _latestMessage.size() << endl;
 }
 
 void ofxSensfloor::_parseMessage(vector<unsigned char> m)
@@ -90,35 +179,41 @@ void ofxSensfloor::_parseMessage(vector<unsigned char> m)
 	unsigned char roomID1 = m[1];
 	unsigned char roomID2 = m[2];
 
+	cout << endl << "PARSE MESSAGE" << endl;
+	
+	for (int i = 0; i < m.size(); i++)
+	{
+		cout << hex << (int)m[i] << " ";
+	}
+
+	cout << endl;
+
 	if (roomID1 == _roomID1 && roomID2 == _roomID2)
 	{
-		ofLog() << "data is from this transciever" << endl;
-
 		unsigned char tileID1 = m[3];
 		unsigned char tileID2 = m[4];
 		unsigned char meaning = m[7];
 
-		if (meaning & MEANING_MSG_STEMS_FROM_TRANSCIEVER == 0) // msg is (probably )from sensor module
+		auto t = _tileByIDs.find(make_pair(tileID1, tileID2));
+
+		if (t != _tileByIDs.end())
 		{
+			t->second->latestUpdateTime = ofGetElapsedTimef();
+			//cout << dec << "Tile id: " << (int)tileID1 << ", " << (int)tileID2 << endl; 
+			//cout << dec << "IDs match a Tile: " << (int)t->second->tileID1 << ", " << (int)t->second->tileID2 << endl;
+
+			int j = 0;
 			// capactive data starts at index 9
-
-			auto t = _tileByIDs.find(make_pair(tileID1, tileID2));
-
-			if (t != _tileByIDs.end())
+			for (int i = 9; i < 17; i++)
 			{
-				for (int i = 9; i < 17; i++)
-				{
-
-				}
-			}
-			else
-			{
-				ofLog(OF_LOG_WARNING) << "Received message from unidentified tile with id:" << tileID1 << ", " << tileID2 << endl;
+				int value = (int)m[i] - 0x80;
+				t->second->fields[j].val = value / (float)0x80;
+				j++;
 			}
 		}
-		else // msg is from transciever
+		else
 		{
-
+			ofLog(OF_LOG_WARNING) << "Received message from unidentified tile with id:" << tileID1 << ", " << tileID2 << endl;
 		}
 	}
 	else
@@ -127,7 +222,7 @@ void ofxSensfloor::_parseMessage(vector<unsigned char> m)
 	}
 }
 
-void ofxSensfloor::setup(unsigned char roomID1, unsigned char roomID2, int numRows, int numCols, vector<int> customTileIDs, ofVec2f tileSize)
+void ofxSensfloor::setup(unsigned char roomID1, unsigned char roomID2, int numCols, int numRows, vector<int> customTileIDs, ofVec2f tileSize)
 {
 	_roomID1 = roomID1;
 	_roomID2 = roomID2;
@@ -192,41 +287,45 @@ void ofxSensfloor::setup(unsigned char roomID1, unsigned char roomID2, int numRo
 			_vertices[i7] = p7;
 			_vertices[i8] = p8;
 
-			/*
-			 1-2-3
-			 |\|/|
-			 8 0 4
-			 |/|\|
-			 7-6-5
-			 */
+			
 			int tileID1 = useCustomLayout ? customTileIDs[IDIndex] : row;
 			int tileID2 = useCustomLayout ? customTileIDs[IDIndex + 1] : col;
 
 			if (tileID1 > -1 && tileID2 > -1)
-			{			
-				// enumeration starts with the triangle in the top rightmost corner
-				_mesh.addTriangle(i0, i3, i4);
-				_mesh.addTriangle(i0, i4, i5);
-				_mesh.addTriangle(i0, i5, i6);
-				_mesh.addTriangle(i0, i6, i7);
-				_mesh.addTriangle(i0, i7, i8);
-				_mesh.addTriangle(i0, i8, i1);
-				_mesh.addTriangle(i0, i1, i2);
-				_mesh.addTriangle(i0, i2, i3);
+			{	
 
-				Tile t;
-				t.tileID1 = tileID1;
-				t.tileID2 = tileID2;
+				/*
+				 7-6-5
+				 |\|/|
+				 8 0 4
+				 |/|\|
+				 1-2-3
+				 */
+
+				// enumeration starts with the triangle in the top rightmost corner
+				_mesh.addTriangle(i0, i6, i5);
+				_mesh.addTriangle(i0, i5, i4);
+				_mesh.addTriangle(i0, i4, i3);
+				_mesh.addTriangle(i0, i3, i2);
+				_mesh.addTriangle(i0, i2, i1);
+				_mesh.addTriangle(i0, i1, i8);
+				_mesh.addTriangle(i0, i8, i7);
+				_mesh.addTriangle(i0, i7, i6);
+				
+				TilePtr t(new Tile);
+				t->tileID1 = (char)tileID1;
+				t->tileID2 = (char)tileID2;
+				t->latestUpdateTime = 0.0f;
 			
 				// enumeration starts with the triangle in the top rightmost corner
-				t.fields.push_back(Field(i0, i3, i4));
-				t.fields.push_back(Field(i0, i4, i5));
-				t.fields.push_back(Field(i0, i5, i6));
-				t.fields.push_back(Field(i0, i6, i7));
-				t.fields.push_back(Field(i0, i7, i8));
-				t.fields.push_back(Field(i0, i8, i1));
-				t.fields.push_back(Field(i0, i1, i2));
-				t.fields.push_back(Field(i0, i2, i3));
+				t->fields.push_back(Field(i0, i6, i5));
+				t->fields.push_back(Field(i0, i5, i4));
+				t->fields.push_back(Field(i0, i4, i3));
+				t->fields.push_back(Field(i0, i3, i2));
+				t->fields.push_back(Field(i0, i2, i1));
+				t->fields.push_back(Field(i0, i1, i8));
+				t->fields.push_back(Field(i0, i8, i7));
+				t->fields.push_back(Field(i0, i7, i6));
 			
 				_tiles.push_back(t);
 
@@ -236,7 +335,7 @@ void ofxSensfloor::setup(unsigned char roomID1, unsigned char roomID2, int numRo
 				}
 				else
 				{
-					_tileByIDs[make_pair(tileID1, tileID2)] = &_tiles[_tiles.size()-1]; // pointer to last element in vector
+					_tileByIDs[make_pair(tileID1, tileID2)] = t;
 				}
 			}
 
@@ -257,28 +356,55 @@ void ofxSensfloor::draw()
 
 	//_mesh.drawVertices();
 	
-	for (vector<Tile>::iterator t = _tiles.begin(); t != _tiles.end(); t++)
+	for (vector<TilePtr>::iterator t = _tiles.begin(); t != _tiles.end(); t++)
 	{
-		for (int i = 0; i < t->fields.size(); i++)
+		TilePtr tile = *t;
+
+		for (int i = 0; i < tile->fields.size(); i++)
 		{
-			float val = t->fields[i].val;
-			ofSetColor(255, 255, 255, 255 * val);
+			float val = tile->fields[i].val;
+
+			/*
+			ofFloatColor c;
+			c.setBrightness(1.0f);
+			c.setSaturation(1.0f);
+			c.setHue(ofMap(val, -1.0f, 1.0f, 0.0f, 0.2f));
+			ofSetColor(c);
 			
-			if (val > .9f) ofSetColor(0, 255, 255, 255 * val);
+			//if (val > .9f) ofSetColor(0, 255, 255, 255 * val);
+			*/
+
+			if (val > threshold)
+			{
+				ofSetColor(255, 0, 0, 255);
+			}
+			else
+			{
+				ofSetColor(255, 255, 255, 255 * val);
+			}
 			
 			ofFill();
-			ofVec3f &v0 = _vertices[t->fields[i].index0];
-			ofVec3f &v1 = _vertices[t->fields[i].index1];
-			ofVec3f &v2 = _vertices[t->fields[i].index2];
+			ofVec3f &v0 = _vertices[tile->fields[i].index0];
+			ofVec3f &v1 = _vertices[tile->fields[i].index1];
+			ofVec3f &v2 = _vertices[tile->fields[i].index2];
+
 			ofTriangle(v0, v1, v2);
+			ofVec3f offset = ofVec3f(0, 0, 40 * val);
+			//ofTriangle(v0+offset, v1+offset, v2+offset);
 		}
 		
 		stringstream ss;
-		ss << (int)t->tileID1 << "," << (int)t->tileID2 << endl;
+		ss << (int)tile->tileID1 << "," << (int)tile->tileID2 << endl;
 		
 		ofSetColor(255, 255, 255);
-		ofVec3f c = _vertices[t->fields[0].index0];
-		ofDrawBitmapString(ss.str(), c);
+		ofVec3f c = _vertices[tile->fields[0].index0];
+		//ofDrawBitmapString(ss.str(), c);
+
+		ofPushMatrix();
+		ofTranslate(c);
+		ofScale(.25f, .25f);
+			_font.drawString(ss.str(), 0, 0);
+		ofPopMatrix();
 	}
 
 	ofPopStyle();
