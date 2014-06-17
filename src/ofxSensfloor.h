@@ -9,16 +9,7 @@
 class ofxSensfloor : public ofThread
 {
 	public:
-	
-		/*
-		Configure the terminal such that it uses the new
-		COM-port with 155kBaud and 8N1 transmission
-		format. In case this is supported by the terminal,
-		configure the message display such that a carriage
-		return is added every 17 bytes as every
-		message from the SE3-P is 17 bytes long.
-		 */
-		
+
 		static const ofVec2f TILE_SIZE_SMALL;
 		static const ofVec2f TILE_SIZE_LARGE;
 		static const int BAUD_RATE_DEFAULT;
@@ -32,11 +23,12 @@ class ofxSensfloor : public ofThread
 		void start(string portName, int baudRate = BAUD_RATE_DEFAULT);
 		void start(int deviceNumber, int baudRate = BAUD_RATE_DEFAULT);
 		void stop();
-		void addTile(unsigned char tileID1, unsigned char tileID2, ofVec3f pos);
+		//void addTile(unsigned char tileID1, unsigned char tileID2, ofVec3f pos);
 	
-		void draw();
+		void draw(bool drawIDs = false);
+		void setTransform(const ofMatrix4x4 &t);
+		ofMatrix4x4 getTransform();
 		
-	
 	private:
 	
 		struct Field
@@ -59,11 +51,13 @@ class ofxSensfloor : public ofThread
 		char _roomID1, _roomID2;
 		ofSerial _serial;
 		vector<ofVec3f> _vertices;
+		vector<ofVec3f> _verticesTransformed;
 		vector<TilePtr> _tiles;
 		map<pair<unsigned char, unsigned char>, TilePtr> _tileByIDs;
 		ofVboMesh _mesh;
 		vector<unsigned char> _latestMessage;
 		ofTrueTypeFont _font;
+		ofMatrix4x4 _transform;
 
 		void threadedFunction();
 		void _readSensorData();
@@ -71,4 +65,5 @@ class ofxSensfloor : public ofThread
 		void _sendMessage(vector<unsigned char> msg);
 		void _sendPollMessage(unsigned char tileID1, unsigned char tileID2);
 		void _checkTimeout();
+		void _updateTransform();
 };

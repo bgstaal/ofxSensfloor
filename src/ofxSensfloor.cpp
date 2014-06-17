@@ -53,7 +53,7 @@ void ofxSensfloor::threadedFunction()
 {
 	while (isThreadRunning())
 	{
-		int sleepTime = 5;
+		const int sleepTime = 5;
 
 		_readSensorData();
 		
@@ -143,8 +143,8 @@ void ofxSensfloor::_readSensorData()
 		vector<unsigned char> buffer(numBytesAvailable);
 		_serial.readBytes(&buffer[0], numBytesAvailable);
 
-		cout << endl;
-		cout << dec << "read " << numBytesAvailable << " from buffer" << endl;
+		//cout << endl;
+		//cout << dec << "read " << numBytesAvailable << " from buffer" << endl;
 
 		for (int i = 0; i < numBytesAvailable; i++)
 		{
@@ -179,14 +179,15 @@ void ofxSensfloor::_parseMessage(vector<unsigned char> m)
 	unsigned char roomID1 = m[1];
 	unsigned char roomID2 = m[2];
 
-	cout << endl << "PARSE MESSAGE" << endl;
-	
+	//cout << endl << "PARSE MESSAGE" << endl;
+	/*
 	for (int i = 0; i < m.size(); i++)
 	{
 		cout << hex << (int)m[i] << " ";
 	}
+	*/
 
-	cout << endl;
+	//cout << endl;
 
 	if (roomID1 == _roomID1 && roomID2 == _roomID2)
 	{
@@ -220,6 +221,30 @@ void ofxSensfloor::_parseMessage(vector<unsigned char> m)
 	{
 		ofLog() << hex << "data is from transciever with room id: " << (int)roomID1 << ", " << (int)roomID2 << endl;
 	}
+}
+
+ofMatrix4x4 ofxSensfloor::getTransform()
+{
+	return _transform;
+}
+
+void ofxSensfloor::setTransform(const ofMatrix4x4 &t)
+{
+	_transform = t;
+	_updateTransform();
+}
+
+void ofxSensfloor::_updateTransform()
+{
+	_verticesTransformed.clear();
+
+	for (int i = 0; i < _vertices.size(); i++)
+	{
+		_verticesTransformed.push_back(_vertices[i] * _transform);
+	}
+
+	_mesh.clearVertices();
+	_mesh.addVertices(_verticesTransformed);
 }
 
 void ofxSensfloor::setup(unsigned char roomID1, unsigned char roomID2, int numCols, int numRows, vector<int> customTileIDs, ofVec2f tileSize)
@@ -343,18 +368,16 @@ void ofxSensfloor::setup(unsigned char roomID1, unsigned char roomID2, int numCo
 		}
 	}
 	
-	_mesh.addVertices(_vertices);
+	_updateTransform();
 }
 
-void ofxSensfloor::draw()
+void ofxSensfloor::draw(bool drawIDs)
 {
 	ofPushStyle();
 	ofSetLineWidth(1.0f);
 	glPointSize(10);
 	
 	_mesh.drawWireframe();
-
-	//_mesh.drawVertices();
 	
 	for (vector<TilePtr>::iterator t = _tiles.begin(); t != _tiles.end(); t++)
 	{
@@ -363,16 +386,6 @@ void ofxSensfloor::draw()
 		for (int i = 0; i < tile->fields.size(); i++)
 		{
 			float val = tile->fields[i].val;
-
-			/*
-			ofFloatColor c;
-			c.setBrightness(1.0f);
-			c.setSaturation(1.0f);
-			c.setHue(ofMap(val, -1.0f, 1.0f, 0.0f, 0.2f));
-			ofSetColor(c);
-			
-			//if (val > .9f) ofSetColor(0, 255, 255, 255 * val);
-			*/
 
 			if (val > threshold)
 			{
@@ -384,9 +397,9 @@ void ofxSensfloor::draw()
 			}
 			
 			ofFill();
-			ofVec3f &v0 = _vertices[tile->fields[i].index0];
-			ofVec3f &v1 = _vertices[tile->fields[i].index1];
-			ofVec3f &v2 = _vertices[tile->fields[i].index2];
+			ofVec3f &v0 = _verticesTransformed[tile->fields[i].index0];
+			ofVec3f &v1 = _verticesTransformed[tile->fields[i].index1];
+			ofVec3f &v2 = _verticesTransformed[tile->fields[i].index2];
 
 			ofTriangle(v0, v1, v2);
 			ofVec3f offset = ofVec3f(0, 0, 40 * val);
@@ -397,14 +410,17 @@ void ofxSensfloor::draw()
 		ss << (int)tile->tileID1 << "," << (int)tile->tileID2 << endl;
 		
 		ofSetColor(255, 255, 255);
-		ofVec3f c = _vertices[tile->fields[0].index0];
+		ofVec3f c = _verticesTransformed[tile->fields[0].index0];
 		//ofDrawBitmapString(ss.str(), c);
 
-		ofPushMatrix();
-		ofTranslate(c);
-		ofScale(.25f, .25f);
-			_font.drawString(ss.str(), 0, 0);
-		ofPopMatrix();
+		if (drawIDs)
+		{
+			ofPushMatrix();
+			ofTranslate(c);
+			ofScale(.25f, .25f);
+				_font.drawString(ss.str(), 0, 0);
+			ofPopMatrix();
+		}	
 	}
 
 	ofPopStyle();

@@ -58,7 +58,7 @@
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
-      <AdditionalIncludeDirectories>..\..\..\addons\ofxTweenzor\src;..\..\..\addons\ofxXmlSettings\libs;..\..\..\addons\ofxXmlSettings\src;..\..\..\addons\ofxUI\src;%(AdditionalIncludeDirectories);src</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\addons\ofxSensfloor\src;..\..\..\addons\ofxTweenzor\src;..\..\..\addons\ofxXmlSettings\libs;..\..\..\addons\ofxXmlSettings\src;..\..\..\addons\ofxUI\src;%(AdditionalIncludeDirectories);src</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
     </ClCompile>
     <Link>
@@ -89,22 +89,15 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\addons\ofxTweenzor\src\Tween.cpp" />
-    <ClCompile Include="..\..\..\addons\ofxTweenzor\src\Tweenzor.cpp" />
     <ClCompile Include="..\..\..\addons\ofxXmlSettings\libs\tinyxml.cpp" />
     <ClCompile Include="..\..\..\addons\ofxXmlSettings\libs\tinyxmlerror.cpp" />
     <ClCompile Include="..\..\..\addons\ofxXmlSettings\libs\tinyxmlparser.cpp" />
     <ClCompile Include="..\..\..\addons\ofxXmlSettings\src\ofxXmlSettings.cpp" />
+    <ClCompile Include="..\src\ofxSensfloor.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\ofApp.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\addons\ofxTweenzor\src\ofxTweenzor.h" />
-    <ClInclude Include="..\..\..\addons\ofxTweenzor\src\Tween.h" />
-    <ClInclude Include="..\..\..\addons\ofxTweenzor\src\TweenEvent.h" />
-    <ClInclude Include="..\..\..\addons\ofxTweenzor\src\TweenFunctions.h" />
-    <ClInclude Include="..\..\..\addons\ofxTweenzor\src\TweenSelector.h" />
-    <ClInclude Include="..\..\..\addons\ofxTweenzor\src\Tweenzor.h" />
     <ClInclude Include="..\..\..\addons\ofxUI\src\ofxUI.h" />
     <ClInclude Include="..\..\..\addons\ofxUI\src\ofxUI2DGraph.h" />
     <ClInclude Include="..\..\..\addons\ofxUI\src\ofxUI2DPad.h" />
@@ -154,6 +147,7 @@
     <ClInclude Include="..\..\..\addons\ofxUI\src\ofxUIWidgetWithLabel.h" />
     <ClInclude Include="..\..\..\addons\ofxXmlSettings\libs\tinyxml.h" />
     <ClInclude Include="..\..\..\addons\ofxXmlSettings\src\ofxXmlSettings.h" />
+    <ClInclude Include="..\src\ofxSensfloor.h" />
     <ClInclude Include="src\ofApp.h" />
   </ItemGroup>
   <ItemGroup>
