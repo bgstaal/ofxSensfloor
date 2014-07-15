@@ -226,56 +226,6 @@ void ofxSensfloor::_parseMessage(vector<unsigned char> m)
 	}
 }
 
-void ofxSensfloor::_updateActivePolygons()
-{
-	_activeFields.clear();
-	_activeFieldsNotClustered.clear();
-	_clusters.clear();
-
-	// get active fields
-	for (vector<TilePtr>::iterator t = _tiles.begin(); t != _tiles.end(); t++)
-	{
-		TilePtr tile = *t;
-
-		// implement when not testing
-		/*
-		if (tile->hasActiveField)
-		{*/
-			for (vector<Field>::iterator f = tile->fields.begin(); f != tile->fields.end(); f++)
-			{
-				if (f->val > threshold)
-				{
-					_activeFields.push_back(*f);
-					_activeFieldsNotClustered.push_back(*f);
-				}
-			}
-		//}
-	}
-
-	while (_activeFieldsNotClustered.size())
-	{
-		vector<Field> cluster;
-
-		Field &f =_activeFieldsNotClustered[0];
-		vector<Field> neighbours = _findNeighbouringFields(f);
-		cluster.push_back(f);
-		_clusters.push_back(cluster);
-
-		_activeFieldsNotClustered.pop_front();
-	}
-
-	//cout << "num active fields: " << _activeFields.size() << endl;
-}
-
-vector<ofxSensfloor::Field> ofxSensfloor::_findNeighbouringFields(Field &field)
-{
-	vector<Field> fields;
-
-
-
-	return fields;
-}
-
 ofMatrix4x4 ofxSensfloor::getTransform()
 {
 	return _transform;
@@ -299,6 +249,8 @@ void ofxSensfloor::_updateTransform()
 	_mesh.clearVertices();
 	_mesh.addVertices(_verticesTransformed);
 }
+
+
 
 void ofxSensfloor::setup(unsigned char roomID1, unsigned char roomID2, int numCols, int numRows, vector<int> customTileIDs, ofVec2f tileSize)
 {
@@ -429,6 +381,112 @@ void ofxSensfloor::setHighlightColor(const ofColor &c)
 	_highlightColor = c;
 } 
 
+void ofxSensfloor::_updateActivePolygons()
+{
+	_activeFields.clear();
+	_activeFieldsNotClustered.clear();
+	_clusters.clear();
+
+	// get active fields
+	for (vector<TilePtr>::iterator t = _tiles.begin(); t != _tiles.end(); t++)
+	{
+		TilePtr tile = *t;
+
+		// implement when not testing
+		/*
+		if (tile->hasActiveField)
+		{*/
+			for (vector<Field>::iterator f = tile->fields.begin(); f != tile->fields.end(); f++)
+			{
+				if (f->val > threshold)
+				{
+					_activeFields.push_back(*f);
+					_activeFieldsNotClustered.push_back(*f);
+				}
+			}
+		//}
+	}
+
+	//arrange active fields into clusters
+	while (_activeFieldsNotClustered.size())
+	{
+		vector<Field> cluster;
+
+		Field &f =_activeFieldsNotClustered[0];
+		_activeFieldsNotClustered.pop_front();
+
+		vector<Field> neighbours = _findNeighbouringFields(f);
+		cluster.push_back(f);
+
+		if (neighbours.size()) cluster.insert(cluster.end(), neighbours.begin(), neighbours.end());
+		_clusters.push_back(cluster);
+	}
+
+	/*
+	// get convex hull from clusters
+	// loop through clusters
+	for (vector<vector<Field> >::iterator c = _clusters.begin(); c != _clusters.end(); c++)
+	{
+		//loop through each field in cluster and retrieve all edges not shared by the others
+		for (int i = 0; i < c->size(); i++)
+		{
+			Field &f1 = (*c)[i];
+
+			//loop through all the other fields in cluster
+			for (int j = 0; j < c->size(); j++)
+			{
+				if (i == j) continue; // skip if it is the same field
+
+				Field &f2 = (*c)[j];
+
+				if (f1.index0 == f2.index0 && f1.index1 == f2.index1) continue;
+				if (f1.index1 == f2.index0 && f1.index0 == f2.index1) continue;
+
+			}
+		}
+	}
+	*/
+
+	//cout << "num active fields: " << _activeFields.size() << endl;
+}
+
+vector<ofxSensfloor::Field> ofxSensfloor::_findNeighbouringFields(Field field)
+{
+	vector<Field> fields;
+
+	int i = 0;
+
+	while (i < _activeFieldsNotClustered.size())
+	{
+		Field f = _activeFieldsNotClustered[i];
+
+		// count shared vertices
+		int numSharedVerts = 0;
+		if (field.index1 == f.index1 || field.index1 == f.index2) numSharedVerts++;
+		if (field.index2 == f.index1 || field.index2 == f.index2) numSharedVerts++;
+		if (field.index0 == f.index0) numSharedVerts++;
+
+		// if it shares 2 or more verts it shares one edge and therefore is neighbours
+		if (numSharedVerts >= 2)
+		{
+			fields.push_back(f); // add it to neighbouring fields
+			_activeFieldsNotClustered.erase(_activeFieldsNotClustered.begin() + i); // remove it from active fields
+
+			//find neighbours of that one as well to see if more are connected
+			vector<Field> neighbours = _findNeighbouringFields(f);
+			if (neighbours.size()) fields.insert(fields.end(), neighbours.begin(), neighbours.end());
+
+			// do not increment as we just removed one element
+		}
+		else
+		{
+			i++;
+		}
+	}
+
+	return fields;
+}
+
 void ofxSensfloor::draw(bool drawIDs)
 {
 	//TODO: remove this call when not developing this functionality anymore
@@ -450,7 +508,7 @@ void ofxSensfloor::draw(bool drawIDs)
 
 			if (val > threshold)
 			{
-				//ofSetColor(_highlightColor);
+				ofSetColor(_highlightColor);
 			}
 			else
 			{
@@ -468,14 +526,14 @@ void ofxSensfloor::draw(bool drawIDs)
 		}
 
 		ofNoFill();
-		ofSetLineWidth(3.0f);
+		ofSetLineWidth(5.0f);
 
 		for (int i = 0; i < _clusters.size(); i++)
 		{
 			ofFloatColor f;
 			f.setBrightness(1.0f);
-			f.setSaturation(1.0f);
-			f.setHue(abs(sin(i*10)));
+			f.setSaturation(fabs(sin(i*10)));
+			f.setHue(fabs(sin(i*20)));
 
 			ofSetColor(f);
 			for (int j = 0; j < _clusters[i].size(); j++)

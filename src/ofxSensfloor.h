@@ -5,6 +5,7 @@
 #include <utility>
 #include <map>
 #include "ofTrueTypeFont.h"
+#include "ofxContourUtil.h"
 
 class ofxSensfloor : public ofThread
 {
@@ -66,8 +67,9 @@ class ofxSensfloor : public ofThread
 		vector<unsigned char> _latestMessage;
 		ofTrueTypeFont _font;
 		ofMatrix4x4 _transform;
+		ofxContourUtil _contourUtil;
 
-		vector<Field> _findNeighbouringFields(Field &field);
+		vector<Field> _findNeighbouringFields(Field field);
 
 		void threadedFunction();
 		void _readSensorData();
