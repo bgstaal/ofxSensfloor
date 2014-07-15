@@ -5,7 +5,6 @@
 #include <utility>
 #include <map>
 #include "ofTrueTypeFont.h"
-#include "ofxContourUtil.h"
 
 class ofxSensfloor : public ofThread
 {
@@ -50,6 +49,7 @@ class ofxSensfloor : public ofThread
 		};
 
 		typedef ofPtr<Tile> TilePtr;
+		typedef pair<int, int> Edge;
 	
 		ofColor _highlightColor;
 		unsigned int _numCycles;
@@ -60,17 +60,18 @@ class ofxSensfloor : public ofThread
 		vector<TilePtr> _tiles;
 		vector<Field> _activeFields;
 		deque<Field> _activeFieldsNotClustered;
+		vector<vector<Edge> > _clusteredEdges;
 		vector<vector<Field> > _clusters;
-		vector<ofPolyline> _activePolygons;
+		vector<vector<int> > _polygons;
 		map<pair<unsigned char, unsigned char>, TilePtr> _tileByIDs;
 		ofVboMesh _mesh;
 		vector<unsigned char> _latestMessage;
 		ofTrueTypeFont _font;
 		ofMatrix4x4 _transform;
-		ofxContourUtil _contourUtil;
 
 		vector<Field> _findNeighbouringFields(Field field);
-
+		Edge _edgeFromIndices(const int &index0, const int &index1);
+		void _addOrIncrementEdgeCount(Edge &e, map<Edge, int> &targetMap);
 		void threadedFunction();
 		void _readSensorData();
 		void _updateActivePolygons();

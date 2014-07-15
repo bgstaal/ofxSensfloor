@@ -386,8 +386,12 @@ void ofxSensfloor::_updateActivePolygons()
 	_activeFields.clear();
 	_activeFieldsNotClustered.clear();
 	_clusters.clear();
+	_clusteredEdges.clear();
+	_polygons.clear();
 
+	// --------------------------------
 	// get active fields
+	// --------------------------------
 	for (vector<TilePtr>::iterator t = _tiles.begin(); t != _tiles.end(); t++)
 	{
 		TilePtr tile = *t;
@@ -407,7 +411,10 @@ void ofxSensfloor::_updateActivePolygons()
 		//}
 	}
 
-	//arrange active fields into clusters
+
+	// --------------------------------
+	// arrange active fields into clusters
+	// --------------------------------
 	while (_activeFieldsNotClustered.size())
 	{
 		vector<Field> cluster;
@@ -422,32 +429,124 @@ void ofxSensfloor::_updateActivePolygons()
 		_clusters.push_back(cluster);
 	}
 
-	/*
-	// get convex hull from clusters
-	// loop through clusters
+
+	// --------------------------------
+	// retrieve all outer edges for each cluster
+	// --------------------------------
 	for (vector<vector<Field> >::iterator c = _clusters.begin(); c != _clusters.end(); c++)
 	{
-		//loop through each field in cluster and retrieve all edges not shared by the others
+		map<Edge, int> edgeRefCount;
+		vector<Edge> edges;
+
+		//loop through each field in cluster and retrieve all the edges + 
 		for (int i = 0; i < c->size(); i++)
 		{
-			Field &f1 = (*c)[i];
+			Field &f = (*c)[i];
 
-			//loop through all the other fields in cluster
-			for (int j = 0; j < c->size(); j++)
+			Edge e0 = _edgeFromIndices(f.index0, f.index1);
+			Edge e1 = _edgeFromIndices(f.index1, f.index2);
+			Edge e2 = _edgeFromIndices(f.index2, f.index0);
+
+			_addOrIncrementEdgeCount(e0, edgeRefCount);
+			_addOrIncrementEdgeCount(e1, edgeRefCount);
+			_addOrIncrementEdgeCount(e2, edgeRefCount);
+		}
+
+		// remove duplicate edges
+		for (map<Edge, int>::iterator it = edgeRefCount.begin(); it != edgeRefCount.end(); it++)
+		{
+			if (it->second == 1)
 			{
-				if (i == j) continue; // skip if it is the same field
-
-				Field &f2 = (*c)[j];
-
-				if (f1.index0 == f2.index0 && f1.index1 == f2.index1) continue;
-				if (f1.index1 == f2.index0 && f1.index0 == f2.index1) continue;
-
+				edges.push_back(it->first);
 			}
 		}
-	}
-	*/
 
-	//cout << "num active fields: " << _activeFields.size() << endl;
+		_clusteredEdges.push_back(edges);
+	}
+
+	// --------------------------------
+	// order edges into polygons
+	// --------------------------------
+
+	for (int i = 0; i < _clusteredEdges.size(); i++)
+	{
+		vector<int> polygon;
+		vector<Edge> unvisitedEdges = _clusteredEdges[i];
+
+		Edge firstEdge = unvisitedEdges[0];
+		unvisitedEdges.erase(unvisitedEdges.begin());
+
+		polygon.push_back(firstEdge.first);
+		polygon.push_back(firstEdge.second);
+		int currentIndex = firstEdge.second;
+		
+		while (unvisitedEdges.size())
+		{
+			//cout << unvisitedEdges.size() << endl;
+
+			for (vector<Edge>::iterator e = unvisitedEdges.begin(); e != unvisitedEdges.end(); e++)
+			{
+				bool edgeFound = false;
+				//cout << "current index: " << currentIndex << endl;
+				//cout << "first: " << e->first << " second: " << e->second << endl;
+
+				if (currentIndex == e->first)
+				{
+					currentIndex = e->second;
+					edgeFound = true;
+				}
+				else if (currentIndex == e->second)
+				{
+					currentIndex = e->first;
+					edgeFound = true;
+				}
+
+				if (edgeFound)
+				{
+					polygon.push_back(currentIndex);
+					unvisitedEdges.erase(e);
+					break;
+				}
+			}
+		}
+
+		polygon.push_back(firstEdge.first);
+
+		_polygons.push_back(polygon);
+	}
+}
+
+void ofxSensfloor::_addOrIncrementEdgeCount(Edge &e, map<Edge, int> &targetMap)
+{
+	map<Edge, int>::iterator it = targetMap.find(e);
+
+	if (it == targetMap.end())
+	{
+		targetMap[e] = 1;
+	}
+	else
+	{
+		targetMap[e] ++;
+	}
+}
+
+ofxSensfloor::Edge ofxSensfloor::_edgeFromIndices(const int &index0, const int &index1)
+{
+	Edge e;
+
+	// order edge indices from low to high
+	if (index0 < index1)
+	{
+		e.first = index0;
+		e.second = index1;
+	}
+	else
+	{
+		e.first = index1;
+		e.second = index0;
+	}
+
+	return e;
 }
 
 vector<ofxSensfloor::Field> ofxSensfloor::_findNeighbouringFields(Field field)
@@ -495,6 +594,7 @@ void ofxSensfloor::draw(bool drawIDs)
 	ofPushStyle();
 	ofSetLineWidth(1.0f);
 	glPointSize(10);
+	ofDisableDepthTest();
 	
 	_mesh.drawWireframe();
 	
@@ -525,9 +625,7 @@ void ofxSensfloor::draw(bool drawIDs)
 			//ofTriangle(v0+offset, v1+offset, v2+offset);
 		}
 
-		ofNoFill();
-		ofSetLineWidth(5.0f);
-
+		/*
 		for (int i = 0; i < _clusters.size(); i++)
 		{
 			ofFloatColor f;
@@ -536,20 +634,59 @@ void ofxSensfloor::draw(bool drawIDs)
 			f.setHue(fabs(sin(i*20)));
 
 			ofSetColor(f);
+
+
 			for (int j = 0; j < _clusters[i].size(); j++)
 			{
 				Field &f = _clusters[i][j];
 				ofTriangle(_verticesTransformed[f.index0], _verticesTransformed[f.index1], _verticesTransformed[f.index2]);
 			}
 		}
+		*/
+
+		/*
+		for (int i = 0; i < _clusteredEdges.size(); i++)
+		{
+			ofFloatColor f;
+			f.setBrightness(1.0f);
+			f.setSaturation(fabs(sin(i*10)));
+			f.setHue(fabs(sin(i*20)));
+
+			ofSetColor(f);
+
+			for (vector<Edge>::iterator e = _clusteredEdges[i].begin(); e != _clusteredEdges[i].end(); e++)
+			{
+				ofLine(_verticesTransformed[e->first], _verticesTransformed[e->second]);
+			}
+		}
+		*/
+
+		glLineWidth(5);
+
+		for (int i  = 0; i < _polygons.size(); i++)
+		{
+			ofFloatColor f;
+			f.setBrightness(1.0f);
+			f.setSaturation(fabs(sin(i*10)));
+			f.setHue(fabs(sin(i*20)));
+
+			ofSetColor(f);
+
+			glBegin(GL_LINE_STRIP);
+			for (int j  = 0; j < _polygons[i].size(); j++)
+			{
+				glVertex2f(_verticesTransformed[_polygons[i][j]].x, _verticesTransformed[_polygons[i][j]].y);
+			}
+
+			glEnd();
+
+		}
 		
-		
-		ofSetColor(255, 255, 255);
-		ofVec3f c = _verticesTransformed[tile->fields[0].index0];
-		//ofDrawBitmapString(ss.str(), c);
 
 		if (drawIDs)
 		{
+			ofSetColor(255, 255, 255);
+			ofVec3f c = _verticesTransformed[tile->fields[0].index0];
 			stringstream ss;
 			ss << (int)tile->tileID1 << "," << (int)tile->tileID2 << endl;
 
