@@ -19,9 +19,8 @@ const ofVec2f ofxSensfloor::TILE_SIZE_LARGE = ofVec2f(50, 100);
 const int ofxSensfloor::BAUD_RATE_DEFAULT = 115200;
 
 ofxSensfloor::ofxSensfloor ()
+: _highlightColor(255, 0, 0, 255), _numCycles(0), threshold(0.145)
 {
-	threshold = 0.145f;
-	_numCycles = 0;
 	_font.loadFont("Courier New", 40);
 }
 
@@ -208,9 +207,13 @@ void ofxSensfloor::_parseMessage(vector<unsigned char> m)
 			for (int i = 9; i < 17; i++)
 			{
 				int value = (int)m[i] - 0x80;
-				t->second->fields[j].val = value / (float)0x80;
+				float val = value / (float)0x80;
+				t->second->fields[j].val = val;
+				t->second->hasActiveField = val >= threshold;
 				j++;
 			}
+
+			_updateActivePolygons();
 		}
 		else
 		{
@@ -221,6 +224,56 @@ void ofxSensfloor::_parseMessage(vector<unsigned char> m)
 	{
 		ofLog() << hex << "data is from transciever with room id: " << (int)roomID1 << ", " << (int)roomID2 << endl;
 	}
+}
+
+void ofxSensfloor::_updateActivePolygons()
+{
+	_activeFields.clear();
+	_activeFieldsNotClustered.clear();
+	_clusters.clear();
+
+	// get active fields
+	for (vector<TilePtr>::iterator t = _tiles.begin(); t != _tiles.end(); t++)
+	{
+		TilePtr tile = *t;
+
+		// implement when not testing
+		/*
+		if (tile->hasActiveField)
+		{*/
+			for (vector<Field>::iterator f = tile->fields.begin(); f != tile->fields.end(); f++)
+			{
+				if (f->val > threshold)
+				{
+					_activeFields.push_back(*f);
+					_activeFieldsNotClustered.push_back(*f);
+				}
+			}
+		//}
+	}
+
+	while (_activeFieldsNotClustered.size())
+	{
+		vector<Field> cluster;
+
+		Field &f =_activeFieldsNotClustered[0];
+		vector<Field> neighbours = _findNeighbouringFields(f);
+		cluster.push_back(f);
+		_clusters.push_back(cluster);
+
+		_activeFieldsNotClustered.pop_front();
+	}
+
+	//cout << "num active fields: " << _activeFields.size() << endl;
+}
+
+vector<ofxSensfloor::Field> ofxSensfloor::_findNeighbouringFields(Field &field)
+{
+	vector<Field> fields;
+
+
+
+	return fields;
 }
 
 ofMatrix4x4 ofxSensfloor::getTransform()
@@ -371,8 +424,16 @@ void ofxSensfloor::setup(unsigned char roomID1, unsigned char roomID2, int numCo
 	_updateTransform();
 }
 
+void ofxSensfloor::setHighlightColor(const ofColor &c)
+{
+	_highlightColor = c;
+} 
+
 void ofxSensfloor::draw(bool drawIDs)
 {
+	//TODO: remove this call when not developing this functionality anymore
+	_updateActivePolygons();
+
 	ofPushStyle();
 	ofSetLineWidth(1.0f);
 	glPointSize(10);
@@ -389,7 +450,7 @@ void ofxSensfloor::draw(bool drawIDs)
 
 			if (val > threshold)
 			{
-				ofSetColor(255, 0, 0, 255);
+				//ofSetColor(_highlightColor);
 			}
 			else
 			{
@@ -405,9 +466,25 @@ void ofxSensfloor::draw(bool drawIDs)
 			ofVec3f offset = ofVec3f(0, 0, 40 * val);
 			//ofTriangle(v0+offset, v1+offset, v2+offset);
 		}
+
+		ofNoFill();
+		ofSetLineWidth(3.0f);
+
+		for (int i = 0; i < _clusters.size(); i++)
+		{
+			ofFloatColor f;
+			f.setBrightness(1.0f);
+			f.setSaturation(1.0f);
+			f.setHue(abs(sin(i*10)));
+
+			ofSetColor(f);
+			for (int j = 0; j < _clusters[i].size(); j++)
+			{
+				Field &f = _clusters[i][j];
+				ofTriangle(_verticesTransformed[f.index0], _verticesTransformed[f.index1], _verticesTransformed[f.index2]);
+			}
+		}
 		
-		stringstream ss;
-		ss << (int)tile->tileID1 << "," << (int)tile->tileID2 << endl;
 		
 		ofSetColor(255, 255, 255);
 		ofVec3f c = _verticesTransformed[tile->fields[0].index0];
@@ -415,6 +492,9 @@ void ofxSensfloor::draw(bool drawIDs)
 
 		if (drawIDs)
 		{
+			stringstream ss;
+			ss << (int)tile->tileID1 << "," << (int)tile->tileID2 << endl;
+
 			ofPushMatrix();
 			ofTranslate(c);
 			ofScale(.25f, .25f);
