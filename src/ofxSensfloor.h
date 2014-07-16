@@ -38,17 +38,29 @@ class ofxSensfloor : public ofThread
 			int index0, index1, index2;
 			float val;
 		};
+
+		typedef shared_ptr<Field> FieldPtr;
 		
 		struct Tile
 		{
 			Tile() :  hasActiveField(false) {};
 			char tileID1, tileID2;
-			vector<Field> fields;
+			vector<FieldPtr> fields;
 			float latestUpdateTime;
 			bool hasActiveField;
 		};
 
-		typedef ofPtr<Tile> TilePtr;
+		typedef shared_ptr<Tile> TilePtr;
+
+		struct Blob
+		{
+			vector<int> polygon;
+			vector<Field> fields;
+		};
+
+		typedef shared_ptr<Blob> BlobPtr;
+
+		
 		typedef pair<int, int> Edge;
 	
 		ofColor _highlightColor;

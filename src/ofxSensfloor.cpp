@@ -80,9 +80,9 @@ void ofxSensfloor::_checkTimeout()
 		{
 			bool valuesOverThreshold = false;
 
-			for (vector<Field>::iterator f = tile->fields.begin(); f != tile->fields.end(); f++)
+			for (vector<FieldPtr>::iterator f = tile->fields.begin(); f != tile->fields.end(); f++)
 			{
-				if (f->val > threshold)
+				if ((*f)->val > threshold)
 				{
 					valuesOverThreshold = true;
 					break;
@@ -204,12 +204,13 @@ void ofxSensfloor::_parseMessage(vector<unsigned char> m)
 
 			int j = 0;
 			// capactive data starts at index 9
+
 			for (int i = 9; i < 17; i++)
 			{
 				int value = (int)m[i] - 0x80;
 				float val = value / (float)0x80;
-				t->second->fields[j].val = val;
-				t->second->hasActiveField = val >= threshold;
+				t->second->fields[j]->val = val;
+				if (val >= threshold) t->second->hasActiveField = true;
 				j++;
 			}
 
@@ -348,14 +349,14 @@ void ofxSensfloor::setup(unsigned char roomID1, unsigned char roomID2, int numCo
 				t->latestUpdateTime = 0.0f;
 			
 				// enumeration starts with the triangle in the top rightmost corner
-				t->fields.push_back(Field(i0, i6, i5));
-				t->fields.push_back(Field(i0, i5, i4));
-				t->fields.push_back(Field(i0, i4, i3));
-				t->fields.push_back(Field(i0, i3, i2));
-				t->fields.push_back(Field(i0, i2, i1));
-				t->fields.push_back(Field(i0, i1, i8));
-				t->fields.push_back(Field(i0, i8, i7));
-				t->fields.push_back(Field(i0, i7, i6));
+				t->fields.push_back(FieldPtr(new Field(i0, i6, i5)));
+				t->fields.push_back(FieldPtr(new Field(i0, i5, i4)));
+				t->fields.push_back(FieldPtr(new Field(i0, i4, i3)));
+				t->fields.push_back(FieldPtr(new Field(i0, i3, i2)));
+				t->fields.push_back(FieldPtr(new Field(i0, i2, i1)));
+				t->fields.push_back(FieldPtr(new Field(i0, i1, i8)));
+				t->fields.push_back(FieldPtr(new Field(i0, i8, i7)));
+				t->fields.push_back(FieldPtr(new Field(i0, i7, i6)));
 			
 				_tiles.push_back(t);
 
@@ -388,8 +389,6 @@ void ofxSensfloor::_updateActivePolygons()
 	_clusters.clear();
 	_clusteredEdges.clear();
 
-
-
 	// --------------------------------
 	// get active fields
 	// --------------------------------
@@ -397,19 +396,17 @@ void ofxSensfloor::_updateActivePolygons()
 	{
 		TilePtr tile = *t;
 
-		// implement when not testing
-		/*
 		if (tile->hasActiveField)
-		{*/
-			for (vector<Field>::iterator f = tile->fields.begin(); f != tile->fields.end(); f++)
+		{
+			for (vector<FieldPtr>::iterator f = tile->fields.begin(); f != tile->fields.end(); f++)
 			{
-				if (f->val > threshold)
+				if ((*f)->val > threshold)
 				{
-					_activeFields.push_back(*f);
-					_activeFieldsNotClustered.push_back(*f);
+					_activeFields.push_back(**f);
+					_activeFieldsNotClustered.push_back(**f);
 				}
 			}
-		//}
+		}
 	}
 
 
@@ -520,7 +517,6 @@ void ofxSensfloor::_updateActivePolygons()
 		}
 
 		polygon.push_back(firstEdge.first);
-
 		polygons.push_back(polygon);
 	}
 
@@ -610,8 +606,6 @@ vector<vector<int> > ofxSensfloor::_getPolygons()
 
 void ofxSensfloor::draw(bool drawBlobs, bool drawIDs)
 {
-	//TODO: remove this call when not developing this functionality anymore
-
 	ofPushStyle();
 	ofSetLineWidth(1.0f);
 	glPointSize(10);
@@ -626,7 +620,7 @@ void ofxSensfloor::draw(bool drawBlobs, bool drawIDs)
 
 		for (int i = 0; i < tile->fields.size(); i++)
 		{
-			float val = tile->fields[i].val;
+			float val = tile->fields[i]->val;
 
 			if (val > threshold)
 			{
@@ -638,9 +632,9 @@ void ofxSensfloor::draw(bool drawBlobs, bool drawIDs)
 			}
 			
 			ofFill();
-			ofVec3f &v0 = _verticesTransformed[tile->fields[i].index0];
-			ofVec3f &v1 = _verticesTransformed[tile->fields[i].index1];
-			ofVec3f &v2 = _verticesTransformed[tile->fields[i].index2];
+			ofVec3f &v0 = _verticesTransformed[tile->fields[i]->index0];
+			ofVec3f &v1 = _verticesTransformed[tile->fields[i]->index1];
+			ofVec3f &v2 = _verticesTransformed[tile->fields[i]->index2];
 
 			ofTriangle(v0, v1, v2);
 			ofVec3f offset = ofVec3f(0, 0, 40 * val);
@@ -650,7 +644,7 @@ void ofxSensfloor::draw(bool drawBlobs, bool drawIDs)
 		if (drawIDs)
 		{
 			ofSetColor(255, 255, 255);
-			ofVec3f c = _verticesTransformed[tile->fields[0].index0];
+			ofVec3f c = _verticesTransformed[tile->fields[0]->index0];
 			stringstream ss;
 			ss << (int)tile->tileID1 << "," << (int)tile->tileID2 << endl;
 
