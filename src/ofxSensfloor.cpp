@@ -19,7 +19,7 @@ const ofVec2f ofxSensfloor::TILE_SIZE_LARGE = ofVec2f(50, 100);
 const int ofxSensfloor::BAUD_RATE_DEFAULT = 115200;
 
 ofxSensfloor::ofxSensfloor ()
-: _highlightColor(255, 0, 0, 255), _numCycles(0), threshold(0.145)
+: _highlightColor(255, 0, 0, 255), _numCycles(0), threshold(0.07)
 {
 	_font.loadFont("Courier New", 40);
 }
@@ -387,7 +387,8 @@ void ofxSensfloor::_updateActivePolygons()
 	_activeFieldsNotClustered.clear();
 	_clusters.clear();
 	_clusteredEdges.clear();
-	_polygons.clear();
+
+
 
 	// --------------------------------
 	// get active fields
@@ -468,6 +469,8 @@ void ofxSensfloor::_updateActivePolygons()
 	// order edges into polygons
 	// --------------------------------
 
+	vector<vector<int> > polygons;
+
 	for (int i = 0; i < _clusteredEdges.size(); i++)
 	{
 		vector<int> polygon;
@@ -480,8 +483,11 @@ void ofxSensfloor::_updateActivePolygons()
 		polygon.push_back(firstEdge.second);
 		int currentIndex = firstEdge.second;
 		
-		while (unvisitedEdges.size())
+		int j = 0;
+
+		while (j < unvisitedEdges.size())
 		{
+			j = 0;
 			//cout << unvisitedEdges.size() << endl;
 
 			for (vector<Edge>::iterator e = unvisitedEdges.begin(); e != unvisitedEdges.end(); e++)
@@ -505,15 +511,22 @@ void ofxSensfloor::_updateActivePolygons()
 				{
 					polygon.push_back(currentIndex);
 					unvisitedEdges.erase(e);
+					j--;
 					break;
 				}
+
+				j++;
 			}
 		}
 
 		polygon.push_back(firstEdge.first);
 
-		_polygons.push_back(polygon);
+		polygons.push_back(polygon);
 	}
+
+	lock();
+		_polygons = polygons;
+	unlock();
 }
 
 void ofxSensfloor::_addOrIncrementEdgeCount(Edge &e, map<Edge, int> &targetMap)
@@ -586,16 +599,25 @@ vector<ofxSensfloor::Field> ofxSensfloor::_findNeighbouringFields(Field field)
 	return fields;
 }
 
-void ofxSensfloor::draw(bool drawIDs)
+vector<vector<int> > ofxSensfloor::_getPolygons()
+{
+	lock();
+		vector<vector<int> > polygons = _polygons;
+	unlock();
+
+	return polygons;
+}
+
+void ofxSensfloor::draw(bool drawBlobs, bool drawIDs)
 {
 	//TODO: remove this call when not developing this functionality anymore
-	_updateActivePolygons();
 
 	ofPushStyle();
 	ofSetLineWidth(1.0f);
 	glPointSize(10);
 	ofDisableDepthTest();
 	
+	ofSetColor(255, 255, 255, 30);
 	_mesh.drawWireframe();
 	
 	for (vector<TilePtr>::iterator t = _tiles.begin(); t != _tiles.end(); t++)
@@ -622,64 +644,6 @@ void ofxSensfloor::draw(bool drawIDs)
 
 			ofTriangle(v0, v1, v2);
 			ofVec3f offset = ofVec3f(0, 0, 40 * val);
-			//ofTriangle(v0+offset, v1+offset, v2+offset);
-		}
-
-		/*
-		for (int i = 0; i < _clusters.size(); i++)
-		{
-			ofFloatColor f;
-			f.setBrightness(1.0f);
-			f.setSaturation(fabs(sin(i*10)));
-			f.setHue(fabs(sin(i*20)));
-
-			ofSetColor(f);
-
-
-			for (int j = 0; j < _clusters[i].size(); j++)
-			{
-				Field &f = _clusters[i][j];
-				ofTriangle(_verticesTransformed[f.index0], _verticesTransformed[f.index1], _verticesTransformed[f.index2]);
-			}
-		}
-		*/
-
-		/*
-		for (int i = 0; i < _clusteredEdges.size(); i++)
-		{
-			ofFloatColor f;
-			f.setBrightness(1.0f);
-			f.setSaturation(fabs(sin(i*10)));
-			f.setHue(fabs(sin(i*20)));
-
-			ofSetColor(f);
-
-			for (vector<Edge>::iterator e = _clusteredEdges[i].begin(); e != _clusteredEdges[i].end(); e++)
-			{
-				ofLine(_verticesTransformed[e->first], _verticesTransformed[e->second]);
-			}
-		}
-		*/
-
-		glLineWidth(5);
-
-		for (int i  = 0; i < _polygons.size(); i++)
-		{
-			ofFloatColor f;
-			f.setBrightness(1.0f);
-			f.setSaturation(fabs(sin(i*10)));
-			f.setHue(fabs(sin(i*20)));
-
-			ofSetColor(f);
-
-			glBegin(GL_LINE_STRIP);
-			for (int j  = 0; j < _polygons[i].size(); j++)
-			{
-				glVertex2f(_verticesTransformed[_polygons[i][j]].x, _verticesTransformed[_polygons[i][j]].y);
-			}
-
-			glEnd();
-
 		}
 		
 
@@ -696,6 +660,30 @@ void ofxSensfloor::draw(bool drawIDs)
 				_font.drawString(ss.str(), 0, 0);
 			ofPopMatrix();
 		}	
+	}
+
+	if (drawBlobs)
+	{
+		vector<vector<int> > polygons = _getPolygons();
+		glLineWidth(3);
+		
+		for (int i  = 0; i < polygons.size(); i++)
+		{
+			ofFloatColor f;
+			f.setBrightness(1.0f);
+			f.setSaturation(.5f);
+			f.setHue(fabs(sin(i*20)));
+
+			ofSetColor(f);
+
+			glBegin(GL_LINE_STRIP);
+			for (int j  = 0; j < polygons[i].size(); j++)
+			{
+				glVertex2f(_verticesTransformed[polygons[i][j]].x, _verticesTransformed[polygons[i][j]].y);
+			}
+
+			glEnd();
+		}
 	}
 
 	ofPopStyle();

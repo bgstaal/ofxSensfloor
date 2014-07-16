@@ -26,7 +26,7 @@ class ofxSensfloor : public ofThread
 		void setHighlightColor(const ofColor &c);
 		//void addTile(unsigned char tileID1, unsigned char tileID2, ofVec3f pos);
 	
-		void draw(bool drawIDs = false);
+		void draw(bool drawBlobs = true, bool drawIDs = false);
 		void setTransform(const ofMatrix4x4 &t);
 		ofMatrix4x4 getTransform();
 		
@@ -34,7 +34,7 @@ class ofxSensfloor : public ofThread
 	
 		struct Field
 		{
-			Field(int index0, int index1, int index2, unsigned char val = 0) : index0(index0), index1(index1), index2(index2), val(ofNoise(index0/10.0f, index1/10.0f, index2/10.0f) * .2f) {};
+			Field(int index0, int index1, int index2, unsigned char val = 0) : index0(index0), index1(index1), index2(index2), val(0.0f) {};
 			int index0, index1, index2;
 			float val;
 		};
@@ -71,6 +71,7 @@ class ofxSensfloor : public ofThread
 
 		vector<Field> _findNeighbouringFields(Field field);
 		Edge _edgeFromIndices(const int &index0, const int &index1);
+		vector<vector<int> > _getPolygons();
 		void _addOrIncrementEdgeCount(Edge &e, map<Edge, int> &targetMap);
 		void threadedFunction();
 		void _readSensorData();
