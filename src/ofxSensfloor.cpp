@@ -131,7 +131,7 @@ void ofxSensfloor::_sendPollMessage(unsigned char tileID1, unsigned char tileID2
 	_serial.writeBytes(&m[0], 17);
 	_serial.flush(false, true);
 
-	cout << "Poll message sent to Tile " << (int)tileID1 << ", " << tileID2 << endl;
+	//cout << "Poll message sent to Tile " << (int)tileID1 << ", " << tileID2 << endl;
 }
 
 void ofxSensfloor::_readSensorData()
@@ -230,6 +230,14 @@ void ofxSensfloor::_parseMessage(vector<unsigned char> m)
 ofMatrix4x4 ofxSensfloor::getTransform()
 {
 	return _transform;
+}
+
+void ofxSensfloor::setTransformFromPosition(const ofVec3f &pos)
+{
+	ofMatrix4x4 t;
+	t.translate(pos);
+
+	setTransform(t);
 }
 
 void ofxSensfloor::setTransform(const ofMatrix4x4 &t)

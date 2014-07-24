@@ -27,6 +27,7 @@ class ofxSensfloor : public ofThread
 		//void addTile(unsigned char tileID1, unsigned char tileID2, ofVec3f pos);
 	
 		void draw(bool drawBlobs = true, bool drawIDs = false);
+		void setTransformFromPosition(const ofVec3f &pos);
 		void setTransform(const ofMatrix4x4 &t);
 		ofMatrix4x4 getTransform();
 		
