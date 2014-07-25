@@ -56,10 +56,10 @@ class ofxSensfloor : public ofThread
 		struct Blob
 		{
 			vector<int> polygon;
-			vector<Field> fields;
+			vector<FieldPtr> fields;
 		};
 
-		typedef shared_ptr<Blob> BlobPtr;
+		//typedef shared_ptr<Blob> BlobPtr;
 
 		
 		typedef pair<int, int> Edge;
@@ -71,20 +71,19 @@ class ofxSensfloor : public ofThread
 		vector<ofVec3f> _vertices;
 		vector<ofVec3f> _verticesTransformed;
 		vector<TilePtr> _tiles;
-		vector<Field> _activeFields;
-		deque<Field> _activeFieldsNotClustered;
+		vector<FieldPtr> _activeFields;
+		deque<FieldPtr> _activeFieldsNotClustered;
 		vector<vector<Edge> > _clusteredEdges;
-		vector<vector<Field> > _clusters;
-		vector<vector<int> > _polygons;
+		vector<vector<FieldPtr> > _clusters;
+		vector<Blob> _blobs;
 		map<pair<unsigned char, unsigned char>, TilePtr> _tileByIDs;
 		ofVboMesh _mesh;
 		vector<unsigned char> _latestMessage;
 		ofTrueTypeFont _font;
 		ofMatrix4x4 _transform;
 
-		vector<Field> _findNeighbouringFields(Field field);
+		vector<FieldPtr> _findNeighbouringFields(FieldPtr field);
 		Edge _edgeFromIndices(const int &index0, const int &index1);
-		vector<vector<int> > _getPolygons();
 		void _addOrIncrementEdgeCount(Edge &e, map<Edge, int> &targetMap);
 		void threadedFunction();
 		void _readSensorData();
@@ -93,5 +92,6 @@ class ofxSensfloor : public ofThread
 		void _sendMessage(vector<unsigned char> msg);
 		void _sendPollMessage(unsigned char tileID1, unsigned char tileID2);
 		void _checkTimeout();
+		vector<Blob> _getBlobs();
 		void _updateTransform();
 };

@@ -410,8 +410,8 @@ void ofxSensfloor::_updateActivePolygons()
 			{
 				if ((*f)->val > threshold)
 				{
-					_activeFields.push_back(**f);
-					_activeFieldsNotClustered.push_back(**f);
+					_activeFields.push_back(*f);
+					_activeFieldsNotClustered.push_back(*f);
 				}
 			}
 		}
@@ -423,12 +423,12 @@ void ofxSensfloor::_updateActivePolygons()
 	// --------------------------------
 	while (_activeFieldsNotClustered.size())
 	{
-		vector<Field> cluster;
+		vector<FieldPtr> cluster;
 
-		Field &f =_activeFieldsNotClustered[0];
+		FieldPtr f =_activeFieldsNotClustered[0];
 		_activeFieldsNotClustered.pop_front();
 
-		vector<Field> neighbours = _findNeighbouringFields(f);
+		vector<FieldPtr> neighbours = _findNeighbouringFields(f);
 		cluster.push_back(f);
 
 		if (neighbours.size()) cluster.insert(cluster.end(), neighbours.begin(), neighbours.end());
@@ -439,7 +439,7 @@ void ofxSensfloor::_updateActivePolygons()
 	// --------------------------------
 	// retrieve all outer edges for each cluster
 	// --------------------------------
-	for (vector<vector<Field> >::iterator c = _clusters.begin(); c != _clusters.end(); c++)
+	for (vector<vector<FieldPtr> >::iterator c = _clusters.begin(); c != _clusters.end(); c++)
 	{
 		map<Edge, int> edgeRefCount;
 		vector<Edge> edges;
@@ -447,11 +447,11 @@ void ofxSensfloor::_updateActivePolygons()
 		//loop through each field in cluster and retrieve all the edges + 
 		for (int i = 0; i < c->size(); i++)
 		{
-			Field &f = (*c)[i];
+			FieldPtr f = (*c)[i];
 
-			Edge e0 = _edgeFromIndices(f.index0, f.index1);
-			Edge e1 = _edgeFromIndices(f.index1, f.index2);
-			Edge e2 = _edgeFromIndices(f.index2, f.index0);
+			Edge e0 = _edgeFromIndices(f->index0, f->index1);
+			Edge e1 = _edgeFromIndices(f->index1, f->index2);
+			Edge e2 = _edgeFromIndices(f->index2, f->index0);
 
 			_addOrIncrementEdgeCount(e0, edgeRefCount);
 			_addOrIncrementEdgeCount(e1, edgeRefCount);
@@ -474,18 +474,20 @@ void ofxSensfloor::_updateActivePolygons()
 	// order edges into polygons
 	// --------------------------------
 
-	vector<vector<int> > polygons;
+	vector<Blob> blobs;
 
 	for (int i = 0; i < _clusteredEdges.size(); i++)
 	{
-		vector<int> polygon;
+		Blob b;
+		b.fields = _clusters[i];
+
 		vector<Edge> unvisitedEdges = _clusteredEdges[i];
 
 		Edge firstEdge = unvisitedEdges[0];
 		unvisitedEdges.erase(unvisitedEdges.begin());
 
-		polygon.push_back(firstEdge.first);
-		polygon.push_back(firstEdge.second);
+		b.polygon.push_back(firstEdge.first);
+		b.polygon.push_back(firstEdge.second);
 		int currentIndex = firstEdge.second;
 		
 		int j = 0;
@@ -514,7 +516,7 @@ void ofxSensfloor::_updateActivePolygons()
 
 				if (edgeFound)
 				{
-					polygon.push_back(currentIndex);
+					b.polygon.push_back(currentIndex);
 					unvisitedEdges.erase(e);
 					j--;
 					break;
@@ -524,12 +526,15 @@ void ofxSensfloor::_updateActivePolygons()
 			}
 		}
 
-		polygon.push_back(firstEdge.first);
-		polygons.push_back(polygon);
+		b.polygon.push_back(firstEdge.first);
+
+		
+
+		blobs.push_back(b);
 	}
 
 	lock();
-		_polygons = polygons;
+		_blobs = blobs;
 	unlock();
 }
 
@@ -566,21 +571,21 @@ ofxSensfloor::Edge ofxSensfloor::_edgeFromIndices(const int &index0, const int &
 	return e;
 }
 
-vector<ofxSensfloor::Field> ofxSensfloor::_findNeighbouringFields(Field field)
+vector<ofxSensfloor::FieldPtr> ofxSensfloor::_findNeighbouringFields(FieldPtr field)
 {
-	vector<Field> fields;
+	vector<FieldPtr> fields;
 
 	int i = 0;
 
 	while (i < _activeFieldsNotClustered.size())
 	{
-		Field f = _activeFieldsNotClustered[i];
+		FieldPtr f = _activeFieldsNotClustered[i];
 
 		// count shared vertices
 		int numSharedVerts = 0;
-		if (field.index1 == f.index1 || field.index1 == f.index2) numSharedVerts++;
-		if (field.index2 == f.index1 || field.index2 == f.index2) numSharedVerts++;
-		if (field.index0 == f.index0) numSharedVerts++;
+		if (field->index1 == f->index1 || field->index1 == f->index2) numSharedVerts++;
+		if (field->index2 == f->index1 || field->index2 == f->index2) numSharedVerts++;
+		if (field->index0 == f->index0) numSharedVerts++;
 
 		// if it shares 2 or more verts it shares one edge and therefore is neighbours
 		if (numSharedVerts >= 2)
@@ -589,7 +594,7 @@ vector<ofxSensfloor::Field> ofxSensfloor::_findNeighbouringFields(Field field)
 			_activeFieldsNotClustered.erase(_activeFieldsNotClustered.begin() + i); // remove it from active fields
 
 			//find neighbours of that one as well to see if more are connected
-			vector<Field> neighbours = _findNeighbouringFields(f);
+			vector<FieldPtr> neighbours = _findNeighbouringFields(f);
 			if (neighbours.size()) fields.insert(fields.end(), neighbours.begin(), neighbours.end());
 
 			// do not increment as we just removed one element
@@ -603,13 +608,10 @@ vector<ofxSensfloor::Field> ofxSensfloor::_findNeighbouringFields(Field field)
 	return fields;
 }
 
-vector<vector<int> > ofxSensfloor::_getPolygons()
+vector<ofxSensfloor::Blob> ofxSensfloor::_getBlobs()
 {
-	lock();
-		vector<vector<int> > polygons = _polygons;
-	unlock();
-
-	return polygons;
+	ofScopedLock lock(mutex);
+		return _blobs;
 }
 
 void ofxSensfloor::draw(bool drawBlobs, bool drawIDs)
@@ -666,10 +668,10 @@ void ofxSensfloor::draw(bool drawBlobs, bool drawIDs)
 
 	if (drawBlobs)
 	{
-		vector<vector<int> > polygons = _getPolygons();
+		vector<Blob> blobs = _getBlobs();
 		glLineWidth(3);
 		
-		for (int i  = 0; i < polygons.size(); i++)
+		for (int i  = 0; i < blobs.size(); i++)
 		{
 			ofFloatColor f;
 			f.setBrightness(1.0f);
@@ -679,9 +681,9 @@ void ofxSensfloor::draw(bool drawBlobs, bool drawIDs)
 			ofSetColor(f);
 
 			glBegin(GL_LINE_STRIP);
-			for (int j  = 0; j < polygons[i].size(); j++)
+			for (int j  = 0; j < blobs[i].polygon.size(); j++)
 			{
-				glVertex2f(_verticesTransformed[polygons[i][j]].x, _verticesTransformed[polygons[i][j]].y);
+				glVertex2f(_verticesTransformed[blobs[i].polygon[j]].x, _verticesTransformed[blobs[i].polygon[j]].y);
 			}
 
 			glEnd();
