@@ -25,8 +25,8 @@ class ofxSensfloor : public ofThread
 		~ofxSensfloor();
 
 		void setup(unsigned char roomID1, unsigned char roomID2, int numCols, int numRows, vector<int> customTileIDs = vector<int>(), ofVec2f tileSize = TILE_SIZE_SMALL);
-		void start(string portName, int baudRate = BAUD_RATE_DEFAULT,  int maxReconnects = 10);
-		void start(int deviceNumber, int baudRate = BAUD_RATE_DEFAULT, int maxReconnects = 10);
+		void start(string portName, int baudRate = BAUD_RATE_DEFAULT,  int maxReconnects = 100);
+		void start(int deviceNumber, int baudRate = BAUD_RATE_DEFAULT, int maxReconnects = 100);
 		void stop();
 		void setHighlightColor(const ofColor &c);
 		//void addTile(unsigned char tileID1, unsigned char tileID2, ofVec3f pos);
