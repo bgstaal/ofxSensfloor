@@ -10,6 +10,11 @@ class ofxSensfloor : public ofThread
 {
 	public:
 
+		struct Blob
+		{
+			vector<ofVec3f> verts;
+		};
+
 		static const ofVec2f TILE_SIZE_SMALL;
 		static const ofVec2f TILE_SIZE_LARGE;
 		static const int BAUD_RATE_DEFAULT;
@@ -20,8 +25,8 @@ class ofxSensfloor : public ofThread
 		~ofxSensfloor();
 
 		void setup(unsigned char roomID1, unsigned char roomID2, int numCols, int numRows, vector<int> customTileIDs = vector<int>(), ofVec2f tileSize = TILE_SIZE_SMALL);
-		void start(string portName, int baudRate = BAUD_RATE_DEFAULT);
-		void start(int deviceNumber, int baudRate = BAUD_RATE_DEFAULT);
+		void start(string portName, int baudRate = BAUD_RATE_DEFAULT,  int maxReconnects = 10);
+		void start(int deviceNumber, int baudRate = BAUD_RATE_DEFAULT, int maxReconnects = 10);
 		void stop();
 		void setHighlightColor(const ofColor &c);
 		//void addTile(unsigned char tileID1, unsigned char tileID2, ofVec3f pos);
@@ -30,6 +35,7 @@ class ofxSensfloor : public ofThread
 		void setTransformFromPosition(const ofVec3f &pos);
 		void setTransform(const ofMatrix4x4 &t);
 		ofMatrix4x4 getTransform();
+		vector<Blob> getBlobs();
 		
 	private:
 	
@@ -53,9 +59,9 @@ class ofxSensfloor : public ofThread
 
 		typedef shared_ptr<Tile> TilePtr;
 
-		struct Blob
+		struct _Blob
 		{
-			vector<int> polygon;
+			vector<int> indices;
 			vector<FieldPtr> fields;
 		};
 
@@ -64,6 +70,13 @@ class ofxSensfloor : public ofThread
 		
 		typedef pair<int, int> Edge;
 	
+		bool _isConnected;
+		int _numReconnects;
+		int _maxReconnects;
+		string _portName;
+		int _deviceNumber;
+		int _baudRate;
+		bool _connectByName;
 		ofColor _highlightColor;
 		unsigned int _numCycles;
 		char _roomID1, _roomID2;
@@ -75,7 +88,7 @@ class ofxSensfloor : public ofThread
 		deque<FieldPtr> _activeFieldsNotClustered;
 		vector<vector<Edge> > _clusteredEdges;
 		vector<vector<FieldPtr> > _clusters;
-		vector<Blob> _blobs;
+		vector<_Blob> _blobs;
 		map<pair<unsigned char, unsigned char>, TilePtr> _tileByIDs;
 		ofVboMesh _mesh;
 		vector<unsigned char> _latestMessage;
@@ -92,6 +105,6 @@ class ofxSensfloor : public ofThread
 		void _sendMessage(vector<unsigned char> msg);
 		void _sendPollMessage(unsigned char tileID1, unsigned char tileID2);
 		void _checkTimeout();
-		vector<Blob> _getBlobs();
+		vector<_Blob> _getBlobs();
 		void _updateTransform();
 };

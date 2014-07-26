@@ -19,7 +19,7 @@ const ofVec2f ofxSensfloor::TILE_SIZE_LARGE = ofVec2f(50, 100);
 const int ofxSensfloor::BAUD_RATE_DEFAULT = 115200;
 
 ofxSensfloor::ofxSensfloor ()
-: _highlightColor(255, 0, 0, 255), _numCycles(0), threshold(0.07)
+: _highlightColor(255, 0, 0, 255), _numCycles(0), threshold(0.07), _isConnected(false)
 {
 	_font.loadFont("Courier New", 40);
 }
@@ -29,17 +29,29 @@ ofxSensfloor::~ofxSensfloor()
 	waitForThread(true);
 }
 
-void ofxSensfloor::start(int deviceNumber, int baudRate)
+void ofxSensfloor::start(int deviceNumber, int baudRate, int maxReconnects)
 {
 	_serial.listDevices();
-	_serial.setup(deviceNumber, baudRate);
+
+	_numReconnects = 0;
+	_connectByName = false;
+	_deviceNumber = deviceNumber;
+	_baudRate = baudRate;
+	_maxReconnects = maxReconnects;
+
 	startThread(true, true);
 }
 
-void ofxSensfloor::start(string portName, int baudRate)
+void ofxSensfloor::start(string portName, int baudRate, int maxReconnects)
 {
 	_serial.listDevices();
-	_serial.setup(portName, baudRate);
+
+	_numReconnects = 0;
+	_connectByName = true;
+	_portName = portName;
+	_baudRate = baudRate;
+	_maxReconnects = maxReconnects;
+
 	startThread(true, true);
 }
 
@@ -52,17 +64,41 @@ void ofxSensfloor::threadedFunction()
 {
 	while (isThreadRunning())
 	{
-		const int sleepTime = 5;
-
-		_readSensorData();
-		
-		if (_numCycles * sleepTime % 10 == 0) // every second
+		if (_isConnected)
 		{
-			_checkTimeout();
-		}
+			const int sleepTime = 1;
 
-		_numCycles++;
-		sleep(sleepTime);
+			_readSensorData();
+		
+			if (_numCycles * sleepTime % 10 == 0)
+			{
+				_checkTimeout();
+			}
+
+			_numCycles++;
+			sleep(sleepTime);
+		}
+		else if (_numReconnects < _maxReconnects)
+		{
+			if (_connectByName)
+			{
+				ofLog(OF_LOG_NOTICE) << "ofxSensfloor connecting to " << _portName << " (num tries: " << _numReconnects + 1 << ")" << endl;
+				_isConnected = _serial.setup(_portName, _baudRate);
+			}
+			else
+			{
+				ofLog(OF_LOG_NOTICE) << "ofxSensfloor connecting to device number " << _deviceNumber << " (num tries: " << _numReconnects + 1 << ")" << endl;
+				_isConnected = _serial.setup(_deviceNumber, _baudRate);
+			}
+
+			_numReconnects ++;
+			sleep(100);
+		}
+		else
+		{
+			ofLog(OF_LOG_ERROR) << "ofxSensfloor failed to connect after " << _numReconnects << " tries" << endl;
+			stopThread();
+		}
 	}	
 }
 
@@ -474,11 +510,11 @@ void ofxSensfloor::_updateActivePolygons()
 	// order edges into polygons
 	// --------------------------------
 
-	vector<Blob> blobs;
+	vector<_Blob> blobs;
 
 	for (int i = 0; i < _clusteredEdges.size(); i++)
 	{
-		Blob b;
+		_Blob b;
 		b.fields = _clusters[i];
 
 		vector<Edge> unvisitedEdges = _clusteredEdges[i];
@@ -486,8 +522,8 @@ void ofxSensfloor::_updateActivePolygons()
 		Edge firstEdge = unvisitedEdges[0];
 		unvisitedEdges.erase(unvisitedEdges.begin());
 
-		b.polygon.push_back(firstEdge.first);
-		b.polygon.push_back(firstEdge.second);
+		b.indices.push_back(firstEdge.first);
+		b.indices.push_back(firstEdge.second);
 		int currentIndex = firstEdge.second;
 		
 		int j = 0;
@@ -516,7 +552,7 @@ void ofxSensfloor::_updateActivePolygons()
 
 				if (edgeFound)
 				{
-					b.polygon.push_back(currentIndex);
+					b.indices.push_back(currentIndex);
 					unvisitedEdges.erase(e);
 					j--;
 					break;
@@ -526,9 +562,7 @@ void ofxSensfloor::_updateActivePolygons()
 			}
 		}
 
-		b.polygon.push_back(firstEdge.first);
-
-		
+		b.indices.push_back(firstEdge.first);
 
 		blobs.push_back(b);
 	}
@@ -536,6 +570,27 @@ void ofxSensfloor::_updateActivePolygons()
 	lock();
 		_blobs = blobs;
 	unlock();
+}
+
+vector<ofxSensfloor::Blob> ofxSensfloor::getBlobs()
+{
+	vector<Blob> outBlobs;
+	vector<_Blob> blobs = _getBlobs();
+
+	for (int i = 0; i < blobs.size(); i++)
+	{
+		_Blob &b = blobs[i];
+		Blob blob;
+
+		for (int j = 0; j < b.indices.size(); j++ )
+		{
+			blob.verts.push_back(_verticesTransformed[blobs[i].indices[j]]);
+		}
+
+		outBlobs.push_back(blob);
+	}
+
+	return outBlobs;
 }
 
 void ofxSensfloor::_addOrIncrementEdgeCount(Edge &e, map<Edge, int> &targetMap)
@@ -608,7 +663,7 @@ vector<ofxSensfloor::FieldPtr> ofxSensfloor::_findNeighbouringFields(FieldPtr fi
 	return fields;
 }
 
-vector<ofxSensfloor::Blob> ofxSensfloor::_getBlobs()
+vector<ofxSensfloor::_Blob> ofxSensfloor::_getBlobs()
 {
 	ofScopedLock lock(mutex);
 		return _blobs;
@@ -668,7 +723,7 @@ void ofxSensfloor::draw(bool drawBlobs, bool drawIDs)
 
 	if (drawBlobs)
 	{
-		vector<Blob> blobs = _getBlobs();
+		vector<_Blob> blobs = _getBlobs();
 		glLineWidth(3);
 		
 		for (int i  = 0; i < blobs.size(); i++)
@@ -681,9 +736,12 @@ void ofxSensfloor::draw(bool drawBlobs, bool drawIDs)
 			ofSetColor(f);
 
 			glBegin(GL_LINE_STRIP);
-			for (int j  = 0; j < blobs[i].polygon.size(); j++)
+
+			_Blob &b = blobs[i];
+
+			for (int j  = 0; j < b.indices.size(); j++)
 			{
-				glVertex2f(_verticesTransformed[blobs[i].polygon[j]].x, _verticesTransformed[blobs[i].polygon[j]].y);
+				glVertex2f(_verticesTransformed[b.indices[j]].x, _verticesTransformed[b.indices[j]].y);
 			}
 
 			glEnd();
