@@ -295,7 +295,12 @@ void ofxSensfloor::_updateTransform()
 	_mesh.addVertices(_verticesTransformed);
 }
 
-
+void ofxSensfloor::setup(unsigned char roomID1, unsigned char roomID2)
+{
+	_roomID1 = roomID1;
+	_roomID2 = roomID2;
+	_updateTransform();
+}
 
 void ofxSensfloor::setup(unsigned char roomID1, unsigned char roomID2, int numCols, int numRows, vector<int> customTileIDs, ofVec2f tileSize)
 {
@@ -329,6 +334,8 @@ void ofxSensfloor::setup(unsigned char roomID1, unsigned char roomID2, int numCo
 		for (int col = 0; col < numCols; col++)
 		{
 			x = tileSize.x * col;
+			int tileID1 = useCustomLayout ? customTileIDs[IDIndex] : row;
+			int tileID2 = useCustomLayout ? customTileIDs[IDIndex + 1] : col;
 			
 			p0 = ofVec3f(x + s.x, y + s.y);
 			p1 = ofVec3f(x, y);
@@ -339,86 +346,133 @@ void ofxSensfloor::setup(unsigned char roomID1, unsigned char roomID2, int numCo
 			p6 = ofVec3f(x + s.x, y + tileSize.y);
 			p7 = ofVec3f(x, y + tileSize.y);
 			p8 = ofVec3f(x, y + s.y);
+
+			_addTile(tileID1, tileID2, p0, p1, p2, p3, p4, p5, p6, p7, p8);
 			
-			int sRow = row * 2;
-			int sCol = col * 2;
-			i0 = ((sRow + 1) * numXVerts) + sCol + 1;
-			i1 = (sRow * numXVerts) + sCol;
-			i2 = (sRow * numXVerts) + sCol + 1;
-			i3 = (sRow * numXVerts) + sCol + 2;
-			i4 = ((sRow + 1) * numXVerts) + sCol + 2;
-			i5 = ((sRow + 2) * numXVerts) + sCol + 2;
-			i6 = ((sRow + 2) * numXVerts) + sCol + 1;
-			i7 = ((sRow + 2) * numXVerts) + sCol;
-			i8 = ((sRow + 1) * numXVerts) + sCol;
-			
-			_vertices[i0] = p0;
-			_vertices[i1] = p1;
-			_vertices[i2] = p2;
-			_vertices[i3] = p3;
-			_vertices[i4] = p4;
-			_vertices[i5] = p5;
-			_vertices[i6] = p6;
-			_vertices[i7] = p7;
-			_vertices[i8] = p8;
-
-			
-			int tileID1 = useCustomLayout ? customTileIDs[IDIndex] : row;
-			int tileID2 = useCustomLayout ? customTileIDs[IDIndex + 1] : col;
-
-			if (tileID1 > -1 && tileID2 > -1)
-			{	
-
-				/*
-				 7-6-5
-				 |\|/|
-				 8 0 4
-				 |/|\|
-				 1-2-3
-				 */
-
-				// enumeration starts with the triangle in the top rightmost corner
-				_mesh.addTriangle(i0, i6, i5);
-				_mesh.addTriangle(i0, i5, i4);
-				_mesh.addTriangle(i0, i4, i3);
-				_mesh.addTriangle(i0, i3, i2);
-				_mesh.addTriangle(i0, i2, i1);
-				_mesh.addTriangle(i0, i1, i8);
-				_mesh.addTriangle(i0, i8, i7);
-				_mesh.addTriangle(i0, i7, i6);
-				
-				TilePtr t(new Tile);
-				t->tileID1 = (char)tileID1;
-				t->tileID2 = (char)tileID2;
-				t->latestUpdateTime = 0.0f;
-			
-				// enumeration starts with the triangle in the top rightmost corner
-				t->fields.push_back(FieldPtr(new Field(i0, i6, i5)));
-				t->fields.push_back(FieldPtr(new Field(i0, i5, i4)));
-				t->fields.push_back(FieldPtr(new Field(i0, i4, i3)));
-				t->fields.push_back(FieldPtr(new Field(i0, i3, i2)));
-				t->fields.push_back(FieldPtr(new Field(i0, i2, i1)));
-				t->fields.push_back(FieldPtr(new Field(i0, i1, i8)));
-				t->fields.push_back(FieldPtr(new Field(i0, i8, i7)));
-				t->fields.push_back(FieldPtr(new Field(i0, i7, i6)));
-			
-				_tiles.push_back(t);
-
-				if (_tileByIDs.find(make_pair(tileID1, tileID2)) != _tileByIDs.end())
-				{
-					ofLog(OF_LOG_ERROR) << "Looks like you have duplicate tile ID's of " << (int)tileID1 << ", " << (int)tileID2 << endl;
-				}
-				else
-				{
-					_tileByIDs[make_pair(tileID1, tileID2)] = t;
-				}
-			}
-
 			IDIndex += 2;
 		}
 	}
 	
 	_updateTransform();
+}
+
+void ofxSensfloor::_addTile(int tileID1, int tileID2, ofVec3f p0, ofVec3f p1, ofVec3f p2, ofVec3f p3, ofVec3f p4, ofVec3f p5, ofVec3f p6, ofVec3f p7, ofVec3f p8)
+{
+	int i0 = _addVertexAndReturnIndex(p0);
+	int i1 = _addVertexAndReturnIndex(p1);
+	int i2 = _addVertexAndReturnIndex(p2);
+	int i3 = _addVertexAndReturnIndex(p3);
+	int i4 = _addVertexAndReturnIndex(p4);
+	int i5 = _addVertexAndReturnIndex(p5);
+	int i6 = _addVertexAndReturnIndex(p6);
+	int i7 = _addVertexAndReturnIndex(p7);
+	int i8 = _addVertexAndReturnIndex(p8);
+
+	if (tileID1 > -1 && tileID2 > -1)
+	{	
+
+		/*
+			7-6-5
+			|\|/|
+			8 0 4
+			|/|\|
+			1-2-3
+			*/
+
+		// enumeration starts with the triangle in the top rightmost corner
+		_mesh.addTriangle(i0, i6, i5);
+		_mesh.addTriangle(i0, i5, i4);
+		_mesh.addTriangle(i0, i4, i3);
+		_mesh.addTriangle(i0, i3, i2);
+		_mesh.addTriangle(i0, i2, i1);
+		_mesh.addTriangle(i0, i1, i8);
+		_mesh.addTriangle(i0, i8, i7);
+		_mesh.addTriangle(i0, i7, i6);
+				
+		TilePtr t(new Tile);
+		t->tileID1 = (char)tileID1;
+		t->tileID2 = (char)tileID2;
+		t->latestUpdateTime = 0.0f;
+			
+		// enumeration starts with the triangle in the top rightmost corner
+		t->fields.push_back(FieldPtr(new Field(i0, i6, i5)));
+		t->fields.push_back(FieldPtr(new Field(i0, i5, i4)));
+		t->fields.push_back(FieldPtr(new Field(i0, i4, i3)));
+		t->fields.push_back(FieldPtr(new Field(i0, i3, i2)));
+		t->fields.push_back(FieldPtr(new Field(i0, i2, i1)));
+		t->fields.push_back(FieldPtr(new Field(i0, i1, i8)));
+		t->fields.push_back(FieldPtr(new Field(i0, i8, i7)));
+		t->fields.push_back(FieldPtr(new Field(i0, i7, i6)));
+			
+		_tiles.push_back(t);
+
+		if (_tileByIDs.find(make_pair(tileID1, tileID2)) != _tileByIDs.end())
+		{
+			ofLog(OF_LOG_ERROR) << "Looks like you have duplicate tile ID's of " << (int)tileID1 << ", " << (int)tileID2 << endl;
+		}
+		else
+		{
+			_tileByIDs[make_pair(tileID1, tileID2)] = t;
+		}
+	}
+}
+
+int ofxSensfloor::_addVertexAndReturnIndex(ofVec3f p)
+{
+	//check for excisting verts at this position
+	for (int i = 0; i < _vertices.size(); i++)
+	{
+		if (p == _vertices[i])
+		{
+			return i;
+		}
+	}
+
+	_vertices.push_back(p);
+	return _vertices.size() - 1;
+}
+
+void ofxSensfloor::addStrip(vector<int> IDs, ofVec3f pos, ofVec3f tileSize, float rotation)
+{
+	ofVec3f p0, p1, p2, p3, p4, p5, p6, p7, p8;
+	ofVec2f s = tileSize*.5f;
+	float x = 0, y = 0;
+	int num =  IDs.size() / 2;
+	int prRow = num;
+	if (tileSize == TILE_SIZE_SMALL) prRow /= 2;
+
+	for (int i = 0; i < num; i++)
+	{
+		/*
+		7-6-5
+		|\|/|
+		8 0 4
+		|/|\|
+		1-2-3
+		*/
+
+		p0 = ofVec3f(x + s.x, y + s.y);
+		p1 = ofVec3f(x, y);
+		p2 = ofVec3f(x + s.x, y);
+		p3 = ofVec3f(x + tileSize.x, y);
+		p4 = ofVec3f(x + tileSize.x, y + s.y);
+		p5 = ofVec3f(x + tileSize.x, y + tileSize.y);
+		p6 = ofVec3f(x + s.x, y + tileSize.y);
+		p7 = ofVec3f(x, y + tileSize.y);
+		p8 = ofVec3f(x, y + s.y);		
+
+		_addTile(IDs[i*2], IDs[(i*2)+1], p0, p1, p2, p3, p4, p5, p6, p7, p8);
+
+		if (i > 0 && (i+1) % prRow == 0)
+		{
+			x = 0;
+			y += tileSize.y;
+		}
+		else
+		{
+			x += tileSize.x;
+		}
+	}
 }
 
 void ofxSensfloor::setHighlightColor(const ofColor &c)

@@ -25,6 +25,8 @@ class ofxSensfloor : public ofThread
 		~ofxSensfloor();
 
 		void setup(unsigned char roomID1, unsigned char roomID2, int numCols, int numRows, vector<int> customTileIDs = vector<int>(), ofVec2f tileSize = TILE_SIZE_SMALL);
+		void setup(unsigned char roomID1, unsigned char roomID2);
+		void addStrip(vector<int> IDs, ofVec3f pos = ofVec3f(), ofVec3f tileSize = TILE_SIZE_SMALL, float rotation = 0);
 		void start(string portName, int baudRate = BAUD_RATE_DEFAULT,  int maxReconnects = 5);
 		void start(int deviceNumber, int baudRate = BAUD_RATE_DEFAULT, int maxReconnects = 5);
 		void stop();
@@ -105,6 +107,8 @@ class ofxSensfloor : public ofThread
 		void _sendMessage(vector<unsigned char> msg);
 		void _sendPollMessage(unsigned char tileID1, unsigned char tileID2);
 		void _checkTimeout();
+		void _addTile(int tileID1, int tileID2, ofVec3f p0, ofVec3f p1, ofVec3f p2, ofVec3f p3, ofVec3f p4, ofVec3f p5, ofVec3f p6, ofVec3f p7, ofVec3f p8);
+		int _addVertexAndReturnIndex(ofVec3f p);
 		vector<_Blob> _getBlobs();
 		void _updateTransform();
 };
