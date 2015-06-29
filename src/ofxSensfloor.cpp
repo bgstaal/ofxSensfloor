@@ -66,7 +66,7 @@ void ofxSensfloor::threadedFunction()
 	{
 		if (_isConnected)
 		{
-			const int sleepTime = 1;
+			const int sleepTime = 2;
 
 			_readSensorData();
 		
@@ -254,7 +254,7 @@ void ofxSensfloor::_parseMessage(vector<unsigned char> m)
 		}
 		else
 		{
-			ofLog(OF_LOG_WARNING) << "Received message from unidentified tile with id:" << tileID1 << ", " << tileID2 << endl;
+			cout << hex << "Received message from unidentified tile with id: " << (int)tileID1 << ", " << (int)tileID2 << endl;
 		}
 	}
 	else
