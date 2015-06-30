@@ -441,6 +441,10 @@ void ofxSensfloor::addStrip(vector<int> IDs, ofVec3f pos, ofVec3f tileSize, floa
 	int prRow = num;
 	if (tileSize == TILE_SIZE_SMALL) prRow /= 2;
 
+	ofMatrix4x4 m;
+	m.rotate(rotation, 0, 0, 1);
+	m.translate(pos);
+
 	for (int i = 0; i < num; i++)
 	{
 		/*
@@ -459,7 +463,16 @@ void ofxSensfloor::addStrip(vector<int> IDs, ofVec3f pos, ofVec3f tileSize, floa
 		p5 = ofVec3f(x + tileSize.x, y + tileSize.y);
 		p6 = ofVec3f(x + s.x, y + tileSize.y);
 		p7 = ofVec3f(x, y + tileSize.y);
-		p8 = ofVec3f(x, y + s.y);		
+		p8 = ofVec3f(x, y + s.y);
+		p0 = p0 * m;
+		p1 = p1 * m;
+		p2 = p2 * m;
+		p3 = p3 * m;
+		p4 = p4 * m;
+		p5 = p5 * m;
+		p6 = p6 * m;
+		p7 = p7 * m;
+		p8 = p8 * m;
 
 		_addTile(IDs[i*2], IDs[(i*2)+1], p0, p1, p2, p3, p4, p5, p6, p7, p8);
 
@@ -473,6 +486,8 @@ void ofxSensfloor::addStrip(vector<int> IDs, ofVec3f pos, ofVec3f tileSize, floa
 			x += tileSize.x;
 		}
 	}
+
+	_updateTransform();
 }
 
 void ofxSensfloor::setHighlightColor(const ofColor &c)
